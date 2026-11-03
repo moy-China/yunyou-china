@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>云游中国 · 旅游景点介绍网站</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <header class="hero">
+    <div class="hero-slides" id="heroSlides"></div>
+    <div class="hero-overlay"></div>
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <h1>发现中国之美<br><em>下一站，出发</em></h1>
+        <p class="sub">汇集全国热门景点，图文并茂、攻略齐全，助你轻松规划每一次旅行。</p>
+        <div class="hero-search">
+          <input id="heroSearchInput" type="text" placeholder="搜索景点名称，如：黄山、故宫、九寨沟…">
+          <button id="heroSearchBtn">🔍 搜索</button>
+        </div>
+        <div class="hero-stats">
+          <div><b id="statSpots">0</b><span>收录景点</span></div>
+          <div><b id="statCats">0</b><span>景点分类</span></div>
+          <div><b id="statNews">0</b><span>旅游资讯</span></div>
+        </div>
+      </div>
+      <div class="hero-livecard" id="heroLive"></div>
+    </div>
+    <div class="hero-dots" id="heroDots"></div>
+  </header>
+
+  <section class="section">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">按类型探索<small>八大主题，总有一款适合你</small></h2>
+      </div>
+      <div class="cats" id="catList"></div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">热门景点<small>人气最高，口碑最佳</small></h2>
+        <a class="more-link" href="attractions.html">查看全部 →</a>
+      </div>
+      <div class="spot-grid" id="featuredList"></div>
+    </div>
+  </section>
+
+  <section class="section" style="padding-top:0">
+    <div class="container">
+      <div class="section-head">
+        <h2 class="section-title">旅游资讯<small>出行攻略与最新动态</small></h2>
+        <a class="more-link" href="news.html">更多资讯 →</a>
+      </div>
+      <div class="news-grid" id="newsList"></div>
+    </div>
+  </section>
+
+  <div id="footer"></div>
+
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var spots = Store.all('attractions').filter(function (a) { return a.status === 'published'; });
+      var news = Store.all('news').filter(function (n) { return n.status === 'published'; });
+      var cats = Store.categories;
+
+      function countUp(el, target) {
+        var start = null;
+        function step(ts) {
+          if (!start) start = ts;
+          var p = Math.min(1, (ts - start) / 1200);
+          el.textContent = Math.round(target * p);
+          if (p < 1) requestAnimationFrame(step);
+          else el.textContent = target;
+        }
+        requestAnimationFrame(step);
+        setTimeout(function () { el.textContent = target; }, 1600);
+      }
+      countUp(document.getElementById('statSpots'), spots.length);
+      countUp(document.getElementById('statCats'), cats.length);
+      countUp(document.getElementById('statNews'), news.length);
+
+      document.getElementById('catList').innerHTML = cats.map(function (c) {
+        var count = spots.filter(function (a) { return a.category === c.name; }).length;
+        return '<a class="cat-card" href="attractions.html?cat=' + encodeURIComponent(c.name) + '">' +
+          '<span class="ic">' + c.icon + '</span><div><b>' + c.name + '</b><span>' + c.desc + ' · ' + count + ' 个景点</span></div></a>';
+      }).join('');
+
+      var featured = spots.filter(function (a) { return a.featured; }).slice(0, 8);
+      if (featured.length < 8) featured = spots.slice(0, 8);
+      document.getElementById('featuredList').innerHTML = featured.map(spotCardHTML).join('');
+
+      document.getElementById('newsList').innerHTML = news.slice(0, 3).map(function (n) {
+        var img = n.cover ? asset(n.cover + '-cover.jpg') : asset('xihu-cover.jpg');
+        return '<a class="news-card" href="news-detail.html?id=' + encodeURIComponent(n.id) + '">' +
+          '<div class="cover"><img src="' + img + '" alt="' + esc(n.title) + '" loading="lazy"></div>' +
+          '<div class="body"><span class="cat">' + esc(n.category) + '</span><h3>' + esc(n.title) + '</h3>' +
+          '<p class="summary">' + esc(n.summary) + '</p><div class="date">' + esc(n.date) + '</div></div></a>';
+      }).join('');
+
+      // ---------- 动态轮播封面 ----------
+      var heroIds = ['huangshan', 'jiuzhaigou', 'gugong', 'xihu', 'budalagong', 'disney'];
+      var heroSpots = heroIds.map(function (id) { return Store.get('attractions', id); }).filter(Boolean);
+      if (!heroSpots.length) heroSpots = spots.slice(0, 6);
+
+      var slidesHost = document.getElementById('heroSlides');
+      var dotsHost = document.getElementById('heroDots');
+      var liveHost = document.getElementById('heroLive');
+      heroSpots.forEach(function (a, i) {
+        var d = document.createElement('div');
+        d.className = 'hero-slide' + (i === 0 ? ' active' : '');
+        d.style.backgroundImage = 'url("' + coverOf(a) + '")';
+        slidesHost.appendChild(d);
+        var b = document.createElement('button');
+        b.setAttribute('aria-label', '切换到 ' + a.name);
+        if (i === 0) b.className = 'active';
+        dotsHost.appendChild(b);
+      });
+
+      var cur = 0;
+      function showHero(i) {
+        cur = i;
+        var slides = slidesHost.children;
+        var dots = dotsHost.children;
+        for (var k = 0; k < slides.length; k++) {
+          slides[k].classList.toggle('active', k === i);
+          dots[k].classList.toggle('active', k === i);
+        }
+        var a = heroSpots[i];
+        liveHost.innerHTML =
+          '<span class="live-badge">正在展示</span>' +
+          '<h3>' + esc(a.name) + '</h3>' +
+          '<div class="meta">📍 ' + esc(a.province) + ' · <span class="rate">' + a.rating.toFixed(1) + '</span> 分 · ' + esc(a.category) + '</div>' +
+          '<p>' + esc(a.summary) + '</p>' +
+          '<a class="btn btn-accent" href="attraction.html?id=' + encodeURIComponent(a.id) + '">立即查看 →</a>';
+      }
+      showHero(0);
+      setInterval(function () { showHero((cur + 1) % heroSpots.length); }, 5200);
+      Array.prototype.forEach.call(dotsHost.children, function (b, i) {
+        b.addEventListener('click', function () { showHero(i); });
+      });
+
+      var input = document.getElementById('heroSearchInput');
+      var go = function () {
+        var q = input.value.trim();
+        if (q) location.href = 'attractions.html?q=' + encodeURIComponent(q);
+      };
+      document.getElementById('heroSearchBtn').addEventListener('click', go);
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    });
+  </script>
+</body>
+</html>
