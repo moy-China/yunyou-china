@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>景点详情 · 云游中国</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <div class="container" id="detailRoot"></div>
+
+  <div id="footer"></div>
+
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var root = document.getElementById('detailRoot');
+      var id = qs('id');
+      var a = Store.get('attractions', id);
+
+      if (!a || a.status !== 'published') {
+        root.innerHTML = '<div class="empty" style="margin:60px 0"><div class="big">🏜️</div><p>未找到该景点，它可能已被删除或下架。</p>' +
+          '<a class="btn btn-primary" href="attractions.html">返回景点大全</a></div>';
+        return;
+      }
+      document.title = a.name + ' · 云游中国';
+
+      var gallery = [coverOf(a)].concat(galleryOf(a));
+      var cats = Store.categories.find(function (c) { return c.name === a.category; });
+
+      root.innerHTML =
+        '<div class="crumb"><a href="index.html">首页</a> / <a href="attractions.html">景点大全</a> / <a href="attractions.html?cat=' + encodeURIComponent(a.category) + '">' + esc(a.category) + '</a> / ' + esc(a.name) + '</div>' +
+        '<div class="detail-top">' +
+        '<div><div class="gallery-main"><img id="mainImg" src="' + gallery[0] + '" alt="' + esc(a.name) + '" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'assets/img/' + a.id + '-cover.svg\';}else{this.src=\'assets/img/default-cover.svg\';}"></div>' +
+        '<div class="gallery-thumbs">' + gallery.map(function (g, i) {
+          return '<img src="' + g + '" class="' + (i === 0 ? 'active' : '') + '" data-i="' + i + '" alt="' + esc(a.name) + ' 图片' + (i + 1) + '" onerror="if(!this.dataset.f){this.dataset.f=1;this.src=\'assets/img/' + a.id + '-cover.svg\';}else{this.src=\'assets/img/default-cover.svg\';}">';
+        }).join('') + '</div></div>' +
+        '<div class="detail-info">' +
+        '<h1>' + esc(a.name) + '</h1>' +
+        '<div class="sub"><span class="rate">' + starsHTML(a.rating) + ' ' + a.rating.toFixed(1) + ' 分</span><span>👁 ' + fmtNum(a.visits) + ' 人浏览</span><span>' + (cats ? cats.icon : '📍') + ' ' + esc(a.category) + '</span></div>' +
+        '<p class="summary">' + esc(a.summary) + '</p>' +
+        '<div class="info-list">' +
+        '<div class="info-row"><span class="k">📍 地址</span><span class="v">' + esc(a.address) + '</span></div>' +
+        '<div class="info-row"><span class="k">🕐 开放时间</span><span class="v">' + esc(a.hours) + '</span></div>' +
+        '<div class="info-row"><span class="k">🎫 门票参考</span><span class="v">' + esc(a.ticket) + '</span></div>' +
+        '<div class="info-row"><span class="k">🚌 交通提示</span><span class="v">' + esc(a.transport) + '</span></div></div>' +
+        '<div class="detail-actions">' +
+        '<button class="btn btn-accent" id="favBtn">' + (isFav(a.id) ? '❤️ 已收藏' : '🤍 收藏') + '</button>' +
+        '<button class="btn btn-ghost" id="commentJump">💬 去留言</button></div></div></div>' +
+
+        '<div class="tabs">' +
+        '<button class="tab active" data-tab="intro">景点介绍</button>' +
+        '<button class="tab" data-tab="info">实用信息</button>' +
+        '<button class="tab" data-tab="tips">游玩攻略</button>' +
+        '<button class="tab" data-tab="comments">游客留言</button></div>' +
+
+        '<div class="panel active" id="panel-intro"><div class="prose">' +
+        a.intro.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div></div>' +
+
+        '<div class="panel" id="panel-info"><div class="prose" style="max-width:720px">' +
+        '<p><b>开放时间：</b>' + esc(a.hours) + '</p>' +
+        '<p><b>门票参考：</b>' + esc(a.ticket) + '</p>' +
+        '<p><b>交通提示：</b>' + esc(a.transport) + '</p>' +
+        '<p><b>详细地址：</b>' + esc(a.address) + '</p></div></div>' +
+
+        '<div class="panel" id="panel-tips"><ul class="tips-list">' +
+        a.tips.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul></div>' +
+
+        '<div class="panel" id="panel-comments"><div id="commentBox"></div></div>' +
+
+        '<section class="section" style="padding-bottom:0"><div class="section-head">' +
+        '<h2 class="section-title">你可能还喜欢<small>同属「' + esc(a.category) + '」的景点</small></h2></div>' +
+        '<div class="spot-grid" id="relatedList"></div></section>';
+
+      // 图库切换
+      document.querySelectorAll('.gallery-thumbs img').forEach(function (img) {
+        img.addEventListener('click', function () {
+          document.getElementById('mainImg').src = gallery[parseInt(img.getAttribute('data-i'), 10)];
+          document.querySelectorAll('.gallery-thumbs img').forEach(function (x) { x.classList.remove('active'); });
+          img.classList.add('active');
+        });
+      });
+
+      // 标签切换
+      document.querySelectorAll('.tab').forEach(function (t) {
+        t.addEventListener('click', function () {
+          document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+          document.querySelectorAll('.panel').forEach(function (x) { x.classList.remove('active'); });
+          t.classList.add('active');
+          document.getElementById('panel-' + t.getAttribute('data-tab')).classList.add('active');
+        });
+      });
+
+      // 收藏
+      var favBtn = document.getElementById('favBtn');
+      favBtn.addEventListener('click', function () {
+        toggleFav(a.id);
+        favBtn.textContent = isFav(a.id) ? '❤️ 已收藏' : '🤍 收藏';
+        favBtn.classList.toggle('active', isFav(a.id));
+      });
+      favBtn.classList.toggle('active', isFav(a.id));
+      document.getElementById('commentJump').addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
+        document.querySelectorAll('.panel').forEach(function (x) { x.classList.remove('active'); });
+        document.querySelector('.tab[data-tab="comments"]').classList.add('active');
+        document.getElementById('panel-comments').classList.add('active');
+        document.getElementById('panel-comments').scrollIntoView({ behavior: 'smooth' });
+      });
+
+      // 相关推荐
+      var related = Store.all('attractions').filter(function (x) {
+        return x.status === 'published' && x.category === a.category && x.id !== a.id;
+      }).slice(0, 4);
+      document.getElementById('relatedList').innerHTML = related.map(spotCardHTML).join('') ||
+        '<div class="empty" style="grid-column:1/-1">暂无同类景点</div>';
+
+      renderComments();
+    });
+
+    function renderComments() {
+      var box = document.getElementById('commentBox');
+      var id = qs('id');
+      var u = Store.session();
+      var all = Store.all('comments').filter(function (c) { return c.attractionId === id && c.status === 'published'; });
+      all.sort(function (a, b) { return b.date.localeCompare(a.date); });
+      var avg = all.length ? (all.reduce(function (s, c) { return s + c.rating; }, 0) / all.length).toFixed(1) : '—';
+
+      var form = '';
+      if (u) {
+        form = '<div class="comment-form"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">' +
+          '<span class="avatar">' + esc(u.nickname.charAt(0)) + '</span><b>' + esc(u.nickname) + '</b></div>' +
+          '<textarea id="cmText" placeholder="写下你的游玩感受吧，真实体验对其他游客很有帮助～"></textarea>' +
+          '<div class="row"><span class="stars-input" id="starsInput">' +
+          [1,2,3,4,5].map(function (i) { return '<span data-v="' + i + '">★</span>'; }).join('') + '</span>' +
+          '<span style="color:var(--muted);font-size:13px" id="starLabel">点击星星评分</span>' +
+          '<button class="btn btn-primary" style="margin-left:auto" id="cmSubmit">发布留言</button></div></div>';
+      } else {
+        form = '<div class="login-tip">🔒 登录后即可发表留言评论。还没有账号？' +
+          '<a href="register.html" style="font-weight:700;text-decoration:underline">立即注册</a> 或 ' +
+          '<a href="login.html?back=' + encodeURIComponent('attraction.html?id=' + id) + '" style="font-weight:700;text-decoration:underline">去登录</a>。</div>';
+      }
+
+      var list = all.map(function (c) {
+        return '<div class="comment"><span class="avatar">' + esc(c.username.charAt(0)) + '</span>' +
+          '<div style="flex:1"><div class="head"><b>' + esc(c.username) + '</b>' +
+          '<span class="stars">' + starsHTML(c.rating) + '</span><span class="date">' + esc(c.date) + '</span></div>' +
+          '<p class="text">' + esc(c.content) + '</p></div></div>';
+      }).join('');
+
+      box.innerHTML =
+        '<div class="section-head" style="margin-bottom:16px"><h2 class="section-title" style="font-size:20px">游客留言<small>共 ' + all.length + ' 条 · 平均 ' + avg + ' 分</small></h2></div>' +
+        form +
+        (list ? list : '<div class="empty" style="border:none;background:transparent;padding:30px"><p>还没有留言，快来抢沙发吧～</p></div>');
+
+      if (u) {
+        var starVal = 5;
+        var stars = document.querySelectorAll('#starsInput span');
+        function paint() {
+          stars.forEach(function (s) { s.classList.toggle('on', parseInt(s.getAttribute('data-v'), 10) <= starVal); });
+          document.getElementById('starLabel').textContent = starVal + ' 星';
+        }
+        stars.forEach(function (s) {
+          s.addEventListener('click', function () { starVal = parseInt(s.getAttribute('data-v'), 10); paint(); });
+        });
+        paint();
+        document.getElementById('cmSubmit').addEventListener('click', function () {
+          var text = document.getElementById('cmText').value.trim();
+          if (!text) { toast('请先写下留言内容', 'error'); return; }
+          Store.save('comments', {
+            id: Store.uid('c'), attractionId: id, username: u.nickname, rating: starVal,
+            content: text, date: today(), status: 'published'
+          });
+          toast('留言发布成功', 'success');
+          document.getElementById('cmText').value = '';
+          renderComments();
+        });
+      }
+    }
+
+    function today() {
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+  </script>
+</body>
+</html>
