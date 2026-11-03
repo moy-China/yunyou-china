@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户管理 · 云游中国后台</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div class="a-card">
+          <div class="head">
+            <h2>👥 注册用户</h2><div class="spacer"></div>
+            <input class="search-input" id="search" type="text" placeholder="搜索用户名 / 昵称…">
+          </div>
+          <div class="body" style="padding:0">
+            <div style="overflow-x:auto">
+              <table class="a-table">
+                <thead><tr><th>用户</th><th>用户名</th><th>角色</th><th>状态</th><th>留言数</th><th>注册日期</th><th style="width:220px">操作</th></tr></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="empty" style="display:none"><div class="big">👥</div><p>暂无匹配的用户。</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      renderShell('users', '用户管理');
+      var kw = '';
+      var me = Store.session();
+      document.getElementById('search').addEventListener('input', function () { kw = this.value.trim(); render(); });
+
+      function render() {
+        var list = Store.all('users');
+        if (kw) list = list.filter(function (u) { return (u.username + u.nickname).toLowerCase().indexOf(kw.toLowerCase()) >= 0; });
+        var comments = Store.all('comments');
+        document.getElementById('tbody').innerHTML = list.map(function (u) {
+          var count = comments.filter(function (c) { return c.username === u.nickname; }).length;
+          var isAdmin = u.role === 'admin';
+          var isMe = me && u.id === me.id;
+          return '<tr><td><div style="display:flex;align-items:center;gap:10px"><span class="avatar">' + esc(u.nickname.charAt(0)) + '</span><b>' + esc(u.nickname) + '</b></div></td>' +
+            '<td>' + esc(u.username) + '</td>' +
+            '<td>' + (isAdmin ? '<span class="pill on">管理员</span>' : '普通用户') + '</td>' +
+            '<td><span class="pill ' + (u.status === 'active' ? 'on' : 'off') + '">' + (u.status === 'active' ? '正常' : '已禁用') + '</span></td>' +
+            '<td>' + count + '</td><td class="text-muted">' + esc(u.createdAt) + '</td>' +
+            '<td><div class="row-actions">' +
+            (isAdmin ? '<a class="a-btn a-btn-ghost a-btn-sm" href="settings.html">账号设置</a>' :
+              '<button class="a-btn a-btn-ghost a-btn-sm" data-act="toggle" data-id="' + u.id + '">' + (u.status === 'active' ? '禁用' : '启用') + '</button>' +
+              '<button class="a-btn a-btn-ghost a-btn-sm" data-act="pwd" data-id="' + u.id + '">重置密码</button>' +
+              '<button class="a-btn a-btn-danger a-btn-sm" data-act="del" data-id="' + u.id + '"' + (isMe ? ' disabled' : '') + '>删除</button>') +
+            '</div></td></tr>';
+        }).join('');
+        document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
+      }
+
+      document.getElementById('tbody').addEventListener('click', function (e) {
+        var btn = e.target.closest('button'); if (!btn) return;
+        var id = btn.getAttribute('data-id'); var act = btn.getAttribute('data-act');
+        var u = Store.get('users', id);
+        if (act === 'toggle') {
+          u.status = u.status === 'active' ? 'disabled' : 'active';
+          Store.save('users', u); toast('已' + (u.status === 'active' ? '启用' : '禁用') + '用户 ' + u.nickname, 'success'); render();
+        } else if (act === 'pwd') {
+          mConfirm('将用户「' + u.username + '」的密码重置为 123456 吗？', function () {
+            u.password = '123456'; Store.save('users', u); toast('密码已重置为 123456', 'success'); render();
+          });
+        } else if (act === 'del') {
+          mConfirm('确定删除用户「' + u.nickname + '」吗？其留言也会一并保留在留言记录中。', function () {
+            Store.remove('users', id); toast('已删除用户 ' + u.nickname, 'success'); render();
+          });
+        }
+      });
+
+      render();
+    });
+  </script>
+</body>
+</html>
