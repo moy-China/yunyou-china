@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>管理员登录 · 云游中国</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="brand"><span class="logo">🏔️</span>云游中国 · 后台管理</div>
+      <p class="sub">请使用管理员账号登录，管理景点、资讯、用户与留言。</p>
+      <form id="form">
+        <div class="field"><label>管理员账号</label><input id="username" type="text" placeholder="请输入管理员账号" required></div>
+        <div class="field"><label>密码</label><input id="password" type="password" placeholder="请输入密码" required></div>
+        <button class="a-btn a-btn-primary btn-block" type="submit">登录后台</button>
+      </form>
+      <div class="hint" style="text-align:center;margin-top:14px;color:var(--muted);font-size:12.5px">演示账号：a*** / ******（如需体验请联系指导教师）</div>
+      <div style="text-align:center;margin-top:12px"><a href="../index.html" style="color:var(--primary);font-size:13px">← 返回前台</a></div>
+    </div>
+  </div>
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.getElementById('form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var u = document.getElementById('username').value.trim();
+      var p = document.getElementById('password').value;
+      var r = Store.login(u, p, 'admin');
+      if (r.error) { toast(r.error, 'error'); return; }
+      toast('登录成功，欢迎回来', 'success');
+      setTimeout(function () { location.href = 'index.html'; }, 600);
+    });
+  </script>
+</body>
+</html>
