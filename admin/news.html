@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资讯管理 · 云游中国后台</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div class="a-card">
+          <div class="head">
+            <h2>📰 资讯列表</h2><div class="spacer"></div>
+            <div class="toolbar">
+              <select class="a-select" id="catSel">
+                <option value="全部">全部分类</option><option value="资讯">资讯</option><option value="攻略">攻略</option><option value="公告">公告</option>
+              </select>
+              <button class="a-btn a-btn-primary" id="addBtn">＋ 发布资讯</button>
+            </div>
+          </div>
+          <div class="body" style="padding:0">
+            <div style="overflow-x:auto">
+              <table class="a-table">
+                <thead><tr><th>标题</th><th>分类</th><th>发布日期</th><th>状态</th><th style="width:170px">操作</th></tr></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="empty" style="display:none"><div class="big">📰</div><p>暂无资讯，点击右上角“发布资讯”。</p></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      renderShell('news', '资讯管理');
+      var cat = '全部';
+      document.getElementById('catSel').addEventListener('change', function () { cat = this.value; render(); });
+      document.getElementById('addBtn').addEventListener('click', function () { editModal(null); });
+
+      function list() {
+        var l = Store.all('news');
+        if (cat !== '全部') l = l.filter(function (n) { return n.category === cat; });
+        l.sort(function (a, b) { return b.date.localeCompare(a.date); });
+        return l;
+      }
+
+      function render() {
+        var l = list();
+        document.getElementById('tbody').innerHTML = l.map(function (n) {
+          return '<tr><td class="name" style="max-width:360px">' + esc(n.title) + '</td>' +
+            '<td>' + esc(n.category) + '</td><td>' + esc(n.date) + '</td>' +
+            '<td><span class="pill ' + (n.status === 'published' ? 'on' : 'off') + '">' + (n.status === 'published' ? '已发布' : '已下线') + '</span></td>' +
+            '<td><div class="row-actions">' +
+            '<button class="a-btn a-btn-ghost a-btn-sm" data-act="edit" data-id="' + n.id + '">编辑</button>' +
+            '<button class="a-btn a-btn-ghost a-btn-sm" data-act="toggle" data-id="' + n.id + '">' + (n.status === 'published' ? '下线' : '发布') + '</button>' +
+            '<button class="a-btn a-btn-danger a-btn-sm" data-act="del" data-id="' + n.id + '">删除</button></div></td></tr>';
+        }).join('');
+        document.getElementById('emptyState').style.display = l.length ? 'none' : 'block';
+      }
+
+      document.getElementById('tbody').addEventListener('click', function (e) {
+        var btn = e.target.closest('button'); if (!btn) return;
+        var id = btn.getAttribute('data-id'); var act = btn.getAttribute('data-act');
+        if (act === 'edit') editModal(Store.get('news', id));
+        else if (act === 'toggle') {
+          var n = Store.get('news', id);
+          n.status = n.status === 'published' ? 'hidden' : 'published';
+          Store.save('news', n); toast('已' + (n.status === 'published' ? '发布' : '下线'), 'success'); render();
+        } else if (act === 'del') {
+          var t = Store.get('news', id);
+          mConfirm('确定删除资讯「' + t.title + '」吗？', function () { Store.remove('news', id); toast('已删除', 'success'); render(); });
+        }
+      });
+
+      function editModal(n) {
+        var isNew = !n;
+        var body = '<div class="a-form">' +
+          '<div class="field full"><label>标题 *</label><input id="fTitle" value="' + (n ? esc(n.title) : '') + '"></div>' +
+          '<div class="field"><label>分类</label><select id="fCat">' +
+          ['资讯', '攻略', '公告'].map(function (c) { return '<option' + (n && n.category === c ? ' selected' : '') + '>' + c + '</option>'; }).join('') +
+          '</select></div>' +
+          '<div class="field"><label>发布日期</label><input id="fDate" type="date" value="' + (n ? n.date : today()) + '"></div>' +
+          '<div class="field full"><label>摘要 *</label><input id="fSummary" value="' + (n ? esc(n.summary) : '') + '"></div>' +
+          '<div class="field full"><label>正文（每行一段）</label><textarea id="fContent" style="min-height:150px">' + (n ? esc(n.content.join('\n')) : '') + '</textarea></div>' +
+          '<div class="field full"><label>配图（可选，直接选择即可，无需上传）</label><select id="fCover">' +
+          '<option value="">默认图片</option>' + Store.all('attractions').map(function (a) {
+            return '<option value="' + a.id + '"' + (n && n.cover === a.id ? ' selected' : '') + '>' + a.name + '</option>';
+          }).join('') + '</select></div></div>';
+
+        openModal(isNew ? '发布资讯' : '编辑资讯', body,
+          '<button class="a-btn a-btn-ghost" data-close="1">取消</button><button class="a-btn a-btn-primary" id="saveBtn">保存</button>');
+
+        document.getElementById('saveBtn').addEventListener('click', function () {
+          var title = document.getElementById('fTitle').value.trim();
+          var summary = document.getElementById('fSummary').value.trim();
+          var content = document.getElementById('fContent').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+          if (!title || !summary || !content.length) { toast('请填写标题、摘要和正文', 'error'); return; }
+          Store.save('news', {
+            id: isNew ? Store.uid('n') : n.id,
+            title: title, category: document.getElementById('fCat').value,
+            date: document.getElementById('fDate').value || today(),
+            summary: summary, content: content,
+            cover: document.getElementById('fCover').value || (n ? n.cover : ''),
+            status: n ? n.status : 'published'
+          });
+          closeModal(); toast(isNew ? '资讯发布成功' : '资讯已更新', 'success'); render();
+        });
+      }
+
+      render();
+    });
+  </script>
+</body>
+</html>
