@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>账号设置 · 云游中国后台</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" class="account-grid">
+          <div class="a-card">
+            <div class="head"><h2>👤 管理员用户名</h2></div>
+            <div class="body">
+              <div class="field">
+                <label>当前用户名</label>
+                <input id="curName" type="text" disabled>
+                <div class="hint">用户名用于后台登录，修改后请使用新用户名登录</div>
+              </div>
+              <div class="field">
+                <label>新用户名</label>
+                <input id="newName" type="text" placeholder="4–16 位字母、数字或下划线">
+              </div>
+              <button class="a-btn a-btn-primary" id="saveName">保存用户名</button>
+            </div>
+          </div>
+
+          <div class="a-card">
+            <div class="head"><h2>🔐 修改密码</h2></div>
+            <div class="body">
+              <div class="field">
+                <label>原密码</label>
+                <input id="oldPwd" type="password" autocomplete="current-password">
+              </div>
+              <div class="field">
+                <label>新密码</label>
+                <input id="newPwd" type="password" autocomplete="new-password" placeholder="至少 6 位">
+              </div>
+              <div class="field">
+                <label>确认新密码</label>
+                <input id="newPwd2" type="password" autocomplete="new-password">
+              </div>
+              <button class="a-btn a-btn-primary" id="savePwd">修改密码</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="a-card" style="margin-top:20px">
+          <div class="head"><h2>ℹ️ 账号安全提示</h2></div>
+          <div class="body" style="color:var(--text);font-size:14px;line-height:1.9">
+            演示站点默认账号仅供课程展示使用，正式部署时请务必修改为个人专用的用户名和密码，并妥善保管。
+            修改用户名或密码后，当前登录状态仍然有效；下次登录时请使用新的用户名和密码。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      renderShell('settings', '账号设置');
+      var u = Store.session();
+      if (!u) return;
+      document.getElementById('curName').value = u.username;
+      document.getElementById('newName').value = u.username;
+
+      document.getElementById('saveName').addEventListener('click', function () {
+        var v = document.getElementById('newName').value.trim();
+        if (!/^[a-zA-Z0-9_]{4,16}$/.test(v)) { toast('用户名需为 4–16 位字母、数字或下划线', 'error'); return; }
+        var dup = Store.find('users', function (x) { return x.username === v && x.id !== u.id; });
+        if (dup) { toast('该用户名已被占用', 'error'); return; }
+        if (v === u.username) { toast('新用户名与当前用户名相同', 'error'); return; }
+        u.username = v;
+        Store.save('users', u);
+        document.getElementById('curName').value = v;
+        toast('管理员用户名已更新，下次登录请使用新用户名', 'success');
+      });
+
+      document.getElementById('savePwd').addEventListener('click', function () {
+        var o = document.getElementById('oldPwd').value;
+        var n = document.getElementById('newPwd').value;
+        var n2 = document.getElementById('newPwd2').value;
+        if (o !== u.password) { toast('原密码不正确', 'error'); return; }
+        if (n.length < 6) { toast('新密码至少 6 位', 'error'); return; }
+        if (n !== n2) { toast('两次输入的新密码不一致', 'error'); return; }
+        u.password = n;
+        Store.save('users', u);
+        document.getElementById('oldPwd').value = document.getElementById('newPwd').value = document.getElementById('newPwd2').value = '';
+        toast('管理员密码修改成功', 'success');
+      });
+    });
+  </script>
+</body>
+</html>
