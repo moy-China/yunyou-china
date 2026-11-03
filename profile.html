@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>个人中心 · 云游中国</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div id="navbar"></div>
+  <div class="container section">
+    <div class="profile-grid">
+      <aside class="profile-side">
+        <span class="avatar" id="sideAvatar">游</span>
+        <h3 id="sideName">未登录</h3>
+        <span class="role" id="sideRole">游客</span>
+        <nav class="side-menu">
+          <button class="active" data-p="info">👤 我的信息</button>
+          <button data-p="pwd">🔑 修改密码</button>
+          <button data-p="favs">❤️ 我的收藏</button>
+          <button data-p="comments">💬 我的留言</button>
+        </nav>
+      </aside>
+      <div class="profile-panel" id="panel"></div>
+    </div>
+  </div>
+  <div id="footer"></div>
+
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var u = Store.session();
+      if (!u) { location.href = 'login.html?back=profile.html'; return; }
+
+      document.getElementById('sideAvatar').textContent = u.nickname.charAt(0);
+      document.getElementById('sideName').textContent = u.nickname;
+      document.getElementById('sideRole').textContent = u.role === 'admin' ? '管理员' : '注册用户';
+
+      var cur = 'info';
+      function render() {
+        var panel = document.getElementById('panel');
+        if (cur === 'info') {
+          panel.innerHTML = '<h2>我的信息</h2>' +
+            '<div class="stat-cards">' +
+            '<div class="stat-card"><b>' + myFavs().length + '</b><span>收藏的景点</span></div>' +
+            '<div class="stat-card"><b>' + myComments().length + '</b><span>发表的留言</span></div>' +
+            '<div class="stat-card"><b>' + esc(u.createdAt || '—') + '</b><span>注册日期</span></div></div>' +
+            '<div class="field"><label>用户名</label><input id="uname" value="' + esc(u.username) + '"><div class="hint">4–16 位字母、数字或下划线，可用于登录</div></div>' +
+            '<div class="field"><label>昵称</label><input id="nick" value="' + esc(u.nickname) + '"></div>' +
+            '<button class="btn btn-primary" id="saveInfo">保存修改</button>';
+          document.getElementById('saveInfo').addEventListener('click', function () {
+            var un = document.getElementById('uname').value.trim();
+            var nk = document.getElementById('nick').value.trim();
+            if (!/^[a-zA-Z0-9_]{4,16}$/.test(un)) { toast('用户名需为 4–16 位字母、数字或下划线', 'error'); return; }
+            if (!nk) { toast('昵称不能为空', 'error'); return; }
+            var dup = Store.find('users', function (x) { return x.username === un && x.id !== u.id; });
+            if (dup) { toast('该用户名已被占用', 'error'); return; }
+            u.username = un; u.nickname = nk;
+            Store.save('users', u);
+            toast('个人信息已更新', 'success');
+            setTimeout(function () { location.reload(); }, 500);
+          });
+        } else if (cur === 'pwd') {
+          panel.innerHTML = '<h2>修改密码</h2>' +
+            '<div class="field"><label>原密码</label><input type="password" id="oldPwd" autocomplete="current-password"></div>' +
+            '<div class="field"><label>新密码</label><input type="password" id="newPwd" autocomplete="new-password"></div>' +
+            '<div class="field"><label>确认新密码</label><input type="password" id="newPwd2" autocomplete="new-password"></div>' +
+            '<button class="btn btn-primary" id="savePwd">确认修改</button>';
+          document.getElementById('savePwd').addEventListener('click', function () {
+            var o = document.getElementById('oldPwd').value;
+            var n = document.getElementById('newPwd').value;
+            var n2 = document.getElementById('newPwd2').value;
+            if (o !== u.password) { toast('原密码不正确', 'error'); return; }
+            if (n.length < 6) { toast('新密码至少 6 位', 'error'); return; }
+            if (n !== n2) { toast('两次输入的新密码不一致', 'error'); return; }
+            u.password = n; Store.save('users', u);
+            toast('密码修改成功', 'success');
+            document.getElementById('oldPwd').value = document.getElementById('newPwd').value = document.getElementById('newPwd2').value = '';
+          });
+        } else if (cur === 'favs') {
+          var ids = myFavs();
+          var spots = Store.all('attractions').filter(function (a) { return ids.indexOf(a.id) >= 0 && a.status === 'published'; });
+          panel.innerHTML = '<h2>我的收藏</h2>' +
+            (spots.length ? '<div class="spot-grid">' + spots.map(spotCardHTML).join('') + '</div>' :
+              '<div class="empty"><div class="big">🤍</div><p>还没有收藏任何景点，去<a href="attractions.html" style="color:var(--primary)">景点大全</a>逛逛吧。</p></div>');
+        } else if (cur === 'comments') {
+          var mine = myComments();
+          panel.innerHTML = '<h2>我的留言</h2>' + (mine.length ? mine.map(function (c) {
+            var a = Store.get('attractions', c.attractionId);
+            return '<div class="comment"><span class="avatar">' + esc(c.username.charAt(0)) + '</span><div style="flex:1">' +
+              '<div class="head"><b>' + (a ? '<a href="attraction.html?id=' + a.id + '" style="color:var(--primary)">' + esc(a.name) + '</a>' : '未知景点') + '</b>' +
+              '<span class="stars">' + starsHTML(c.rating) + '</span><span class="date">' + esc(c.date) + '</span></div>' +
+              '<p class="text">' + esc(c.content) + '</p></div></div>';
+          }).join('') : '<div class="empty"><div class="big">💬</div><p>还没有发表过留言。</p></div>');
+        }
+      }
+
+      function myComments() {
+        return Store.all('comments').filter(function (c) { return c.username === u.nickname; });
+      }
+
+      document.querySelectorAll('.side-menu button').forEach(function (b) {
+        b.addEventListener('click', function () {
+          document.querySelectorAll('.side-menu button').forEach(function (x) { x.classList.remove('active'); });
+          b.classList.add('active'); cur = b.getAttribute('data-p'); render();
+        });
+      });
+      render();
+    });
+  </script>
+</body>
+</html>
