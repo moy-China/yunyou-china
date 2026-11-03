@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>景点大全 · 云游中国</title>
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+  <div id="navbar"></div>
+
+  <header class="page-hero">
+    <div class="container">
+      <h1>景点大全</h1>
+      <p>按分类、关键词快速找到心仪的目的地，点击卡片查看详情与攻略。</p>
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="filter-bar">
+      <div class="chips" id="chips"></div>
+      <select id="sortSel">
+        <option value="hot">按热度排序</option>
+        <option value="rating">按评分排序</option>
+        <option value="name">按名称排序</option>
+      </select>
+    </div>
+    <div class="result-info" id="resultInfo"></div>
+    <div class="spot-grid" id="spotList"></div>
+    <div id="emptyState" class="empty" style="display:none">
+      <div class="big">🔍</div>
+      <p>没有找到匹配的景点，换个关键词或分类试试吧。</p>
+    </div>
+    <div class="pager" id="pager"></div>
+  </div>
+
+  <div id="footer"></div>
+
+  <script src="assets/js/store.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      var PAGE_SIZE = 8;
+      var curCat = qs('cat') || '全部';
+      var curQ = qs('q') || '';
+      var curSort = 'hot';
+      var curPage = 1;
+
+      var chips = ['全部'].concat(Store.categories.map(function (c) { return c.name; }));
+      function renderChips() {
+        document.getElementById('chips').innerHTML = chips.map(function (c) {
+          return '<button class="chip' + (c === curCat ? ' active' : '') + '" data-cat="' + esc(c) + '">' + c + '</button>';
+        }).join('');
+        document.querySelectorAll('#chips .chip').forEach(function (b) {
+          b.addEventListener('click', function () {
+            curCat = b.getAttribute('data-cat');
+            curPage = 1;
+            renderChips();
+            render();
+          });
+        });
+      }
+
+      function filtered() {
+        var list = Store.all('attractions').filter(function (a) { return a.status === 'published'; });
+        if (curCat !== '全部') list = list.filter(function (a) { return a.category === curCat; });
+        if (curQ) {
+          var kw = curQ.toLowerCase();
+          list = list.filter(function (a) {
+            return (a.name + a.province + a.summary + a.tags.join('')).toLowerCase().indexOf(kw) >= 0;
+          });
+        }
+        if (curSort === 'rating') list.sort(function (a, b) { return b.rating - a.rating; });
+        else if (curSort === 'name') list.sort(function (a, b) { return a.name.localeCompare(b.name, 'zh'); });
+        else list.sort(function (a, b) { return b.visits - a.visits; });
+        return list;
+      }
+
+      function render() {
+        var list = filtered();
+        var totalPages = Math.max(1, Math.ceil(list.length / PAGE_SIZE));
+        if (curPage > totalPages) curPage = totalPages;
+        var start = (curPage - 1) * PAGE_SIZE;
+        var pageItems = list.slice(start, start + PAGE_SIZE);
+
+        document.getElementById('resultInfo').textContent = '共找到 ' + list.length + ' 个景点' +
+          (curCat !== '全部' ? '（分类：' + curCat + '）' : '') +
+          (curQ ? '（关键词：' + curQ + '）' : '');
+
+        document.getElementById('spotList').innerHTML = pageItems.map(spotCardHTML).join('');
+        document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
+        document.getElementById('spotList').style.display = list.length ? 'grid' : 'none';
+
+        var pager = document.getElementById('pager');
+        if (totalPages <= 1) { pager.innerHTML = ''; return; }
+        var h = '<button ' + (curPage === 1 ? 'disabled' : '') + ' data-p="' + (curPage - 1) + '">‹</button>';
+        for (var i = 1; i <= totalPages; i++) {
+          h += '<button class="' + (i === curPage ? 'active' : '') + '" data-p="' + i + '">' + i + '</button>';
+        }
+        h += '<button ' + (curPage === totalPages ? 'disabled' : '') + ' data-p="' + (curPage + 1) + '">›</button>';
+        pager.innerHTML = h;
+        pager.querySelectorAll('button').forEach(function (b) {
+          b.addEventListener('click', function () {
+            if (b.disabled) return;
+            curPage = parseInt(b.getAttribute('data-p'), 10);
+            render();
+            window.scrollTo({ top: 260, behavior: 'smooth' });
+          });
+        });
+      }
+
+      document.getElementById('sortSel').addEventListener('change', function () {
+        curSort = this.value; curPage = 1; render();
+      });
+
+      renderChips();
+      render();
+    });
+  </script>
+</body>
+</html>
