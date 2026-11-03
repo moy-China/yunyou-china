@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>景点管理 · 云游中国后台</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div class="a-card">
+          <div class="head">
+            <h2>🏞️ 景点列表</h2><div class="spacer"></div>
+            <div class="toolbar">
+              <input class="search-input" id="search" type="text" placeholder="搜索景点名称 / 省份…">
+              <select class="a-select" id="catSel"></select>
+              <button class="a-btn a-btn-primary" id="addBtn">＋ 新增景点</button>
+            </div>
+          </div>
+          <div class="body" style="padding:0">
+            <div style="overflow-x:auto">
+              <table class="a-table">
+                <thead><tr><th>封面</th><th>景点名称</th><th>分类</th><th>省份</th><th>评分</th><th>热度</th><th>状态</th><th style="width:190px">操作</th></tr></thead>
+                <tbody id="tbody"></tbody>
+              </table>
+            </div>
+            <div id="emptyState" class="empty" style="display:none"><div class="big">🏜️</div><p>暂无景点，点击右上角“新增景点”开始创建。</p></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 20px;border-top:1px solid var(--line)">
+              <span class="text-muted" id="pageInfo"></span>
+              <div id="pager" style="display:flex;gap:6px"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      renderShell('attractions', '景点管理');
+      var PAGE = 6, curPage = 1, kw = '', cat = '全部';
+
+      document.getElementById('catSel').innerHTML = ['全部'].concat(Store.categories.map(function (c) { return c.name; })).map(function (c) {
+        return '<option value="' + c + '">' + c + '</option>';
+      }).join('');
+      document.getElementById('search').addEventListener('input', function () { kw = this.value.trim(); curPage = 1; render(); });
+      document.getElementById('catSel').addEventListener('change', function () { cat = this.value; curPage = 1; render(); });
+      document.getElementById('addBtn').addEventListener('click', function () { editModal(null); });
+
+      function filtered() {
+        var list = Store.all('attractions');
+        if (cat !== '全部') list = list.filter(function (a) { return a.category === cat; });
+        if (kw) list = list.filter(function (a) { return (a.name + a.province).toLowerCase().indexOf(kw.toLowerCase()) >= 0; });
+        list.sort(function (a, b) { return (b.featured ? 1 : 0) - (a.featured ? 1 : 0) || b.visits - a.visits; });
+        return list;
+      }
+
+      function render() {
+        var list = filtered();
+        var pages = Math.max(1, Math.ceil(list.length / PAGE));
+        if (curPage > pages) curPage = pages;
+        var items = list.slice((curPage - 1) * PAGE, curPage * PAGE);
+        document.getElementById('tbody').innerHTML = items.map(function (a) {
+          return '<tr><td><img class="thumb" src="' + coverOf(a) + '" onerror="this.onerror=null;this.src=\'../assets/img/default-cover.svg\'"></td>' +
+            '<td class="name">' + esc(a.name) + (a.featured ? ' <span class="pill on">热门</span>' : '') + '</td>' +
+            '<td>' + esc(a.category) + '</td><td>' + esc(a.province) + '</td>' +
+            '<td><span class="star">★</span> ' + a.rating.toFixed(1) + '</td><td>' + fmtNum(a.visits) + '</td>' +
+            '<td><span class="pill ' + (a.status === 'published' ? 'on' : 'off') + '">' + (a.status === 'published' ? '已上架' : '已下架') + '</span></td>' +
+            '<td><div class="row-actions">' +
+            '<button class="a-btn a-btn-ghost a-btn-sm" data-act="edit" data-id="' + a.id + '">编辑</button>' +
+            '<button class="a-btn a-btn-ghost a-btn-sm" data-act="toggle" data-id="' + a.id + '">' + (a.status === 'published' ? '下架' : '上架') + '</button>' +
+            '<button class="a-btn a-btn-danger a-btn-sm" data-act="del" data-id="' + a.id + '">删除</button></div></td></tr>';
+        }).join('');
+        document.getElementById('emptyState').style.display = list.length ? 'none' : 'block';
+        document.getElementById('pageInfo').textContent = '共 ' + list.length + ' 个景点 · 第 ' + curPage + ' / ' + pages + ' 页';
+        var pager = document.getElementById('pager');
+        pager.innerHTML = '';
+        if (pages > 1) {
+          var h = '<button class="a-btn a-btn-ghost a-btn-sm" data-p="' + (curPage - 1) + '"' + (curPage === 1 ? ' disabled' : '') + '>上一页</button>';
+          h += '<button class="a-btn a-btn-ghost a-btn-sm" data-p="' + (curPage + 1) + '"' + (curPage === pages ? ' disabled' : '') + '>下一页</button>';
+          pager.innerHTML = h;
+          pager.querySelectorAll('button').forEach(function (b) {
+            b.addEventListener('click', function () { if (!b.disabled) { curPage = parseInt(b.getAttribute('data-p'), 10); render(); } });
+          });
+        }
+      }
+
+      document.getElementById('tbody').addEventListener('click', function (e) {
+        var btn = e.target.closest('button'); if (!btn) return;
+        var id = btn.getAttribute('data-id'); var act = btn.getAttribute('data-act');
+        if (act === 'edit') editModal(Store.get('attractions', id));
+        else if (act === 'toggle') {
+          var a = Store.get('attractions', id);
+          a.status = a.status === 'published' ? 'hidden' : 'published';
+          Store.save('attractions', a);
+          toast('已' + (a.status === 'published' ? '上架' : '下架') + '：' + a.name, 'success');
+          render();
+        } else if (act === 'del') {
+          var t = Store.get('attractions', id);
+          mConfirm('确定要删除景点「' + t.name + '」吗？删除后不可恢复。', function () {
+            Store.remove('attractions', id);
+            toast('已删除：' + t.name, 'success');
+            render();
+          });
+        }
+      });
+
+      function editModal(a) {
+        var isNew = !a;
+        var coverVal = a && a.cover ? a.cover : '';
+        var galVal = a && a.gallery ? a.gallery : [];
+        var body =
+          '<div class="a-form">' +
+          '<div class="field"><label>景点名称 *</label><input id="fName" value="' + (a ? esc(a.name) : '') + '" placeholder="如：黄山"></div>' +
+          '<div class="field"><label>分类 *</label><select id="fCat">' + Store.categories.map(function (c) {
+            return '<option value="' + c.name + '"' + (a && a.category === c.name ? ' selected' : '') + '>' + c.icon + ' ' + c.name + '</option>';
+          }).join('') + '</select></div>' +
+          '<div class="field"><label>省份 *</label><input id="fProvince" value="' + (a ? esc(a.province) : '') + '" placeholder="如：安徽"></div>' +
+          '<div class="field"><label>评分（0–5）</label><input id="fRating" type="number" step="0.1" min="0" max="5" value="' + (a ? a.rating : 4.8) + '"></div>' +
+          '<div class="field full"><label>一句话简介 *</label><input id="fSummary" value="' + (a ? esc(a.summary) : '') + '" placeholder="用一句话概括景点亮点"></div>' +
+          '<div class="field full"><label>详细介绍 *（每行一段）</label><textarea id="fIntro" placeholder="第一段…&#10;第二段…&#10;第三段…">' + (a ? esc(a.intro.join('\n')) : '') + '</textarea></div>' +
+          '<div class="field"><label>开放时间</label><input id="fHours" value="' + (a ? esc(a.hours) : '') + '" placeholder="如：08:00–18:00"></div>' +
+          '<div class="field"><label>门票参考</label><input id="fTicket" value="' + (a ? esc(a.ticket) : '') + '" placeholder="如：旺季 190 元/人"></div>' +
+          '<div class="field full"><label>交通提示</label><input id="fTransport" value="' + (a ? esc(a.transport) : '') + '"></div>' +
+          '<div class="field full"><label>详细地址</label><input id="fAddress" value="' + (a ? esc(a.address) : '') + '"></div>' +
+          '<div class="field full"><label>游玩攻略（每行一条）</label><textarea id="fTips" placeholder="第一条建议…&#10;第二条建议…">' + (a ? esc(a.tips.join('\n')) : '') + '</textarea></div>' +
+          '<div class="field"><label>标签（用逗号分隔）</label><input id="fTags" value="' + (a ? esc(a.tags.join(',')) : '') + '" placeholder="如：云海,日出,世界遗产"></div>' +
+          '<div class="field"><label>设为热门推荐</label><div style="margin-top:8px"><label style="display:inline-flex;align-items:center;gap:8px;font-weight:400"><input type="checkbox" id="fFeatured"' + (a && a.featured ? ' checked' : '') + '> 在首页热门景点中展示</label></div></div>' +
+          '<div class="field full"><label>封面图片</label><div class="img-upload">' +
+          '<img class="preview" id="coverPreview" src="' + (coverVal || '../assets/img/default-cover.svg') + '">' +
+          '<input type="file" id="coverFile" accept="image/*"><span class="text-muted">支持 JPG / PNG / GIF</span></div></div>' +
+          '<div class="field full"><label>景点图集（可多选）</label><div class="img-upload" id="galPreviewWrap">' +
+          '<input type="file" id="galFiles" accept="image/*" multiple></div></div>' +
+          '</div>';
+
+        openModal(isNew ? '新增景点' : '编辑景点 · ' + a.name, body,
+          '<button class="a-btn a-btn-ghost" data-close="1">取消</button><button class="a-btn a-btn-primary" id="saveBtn">保存</button>');
+
+        document.getElementById('coverFile').addEventListener('change', function () {
+          var f = this.files[0]; if (!f) return;
+          compressImage(f, 1280, function (url) { coverVal = url; document.getElementById('coverPreview').src = url; });
+        });
+        document.getElementById('galFiles').addEventListener('change', function () {
+          galVal = [];
+          var files = Array.prototype.slice.call(this.files);
+          files.forEach(function (f) { compressImage(f, 1280, function (url) { galVal.push(url); paintGal(); }); });
+        });
+        function paintGal() {
+          document.getElementById('galPreviewWrap').innerHTML = galVal.map(function (u) {
+            return '<img class="preview" src="' + u + '">';
+          }).join('') + '<input type="file" id="galFiles" accept="image/*" multiple>';
+          document.getElementById('galFiles').addEventListener('change', function () {
+            Array.prototype.slice.call(this.files).forEach(function (f) { compressImage(f, 1280, function (url) { galVal.push(url); paintGal(); }); });
+          });
+        }
+        if (galVal.length) paintGal();
+
+        document.getElementById('saveBtn').addEventListener('click', function () {
+          var name = document.getElementById('fName').value.trim();
+          var prov = document.getElementById('fProvince').value.trim();
+          var summary = document.getElementById('fSummary').value.trim();
+          var intro = document.getElementById('fIntro').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+          if (!name || !prov || !summary || !intro.length) { toast('请填写景点名称、省份、简介和详细介绍', 'error'); return; }
+          var item = {
+            id: isNew ? Store.uid('spot') : a.id,
+            name: name,
+            category: document.getElementById('fCat').value,
+            province: prov,
+            rating: Math.min(5, Math.max(0, parseFloat(document.getElementById('fRating').value) || 4.8)),
+            visits: a ? a.visits : Math.floor(Math.random() * 8000 + 2000),
+            tags: document.getElementById('fTags').value.split(/[,，]/).map(function (s) { return s.trim(); }).filter(Boolean),
+            summary: summary,
+            intro: intro,
+            hours: document.getElementById('fHours').value.trim(),
+            ticket: document.getElementById('fTicket').value.trim(),
+            transport: document.getElementById('fTransport').value.trim(),
+            address: document.getElementById('fAddress').value.trim(),
+            tips: document.getElementById('fTips').value.split('\n').map(function (s) { return s.trim(); }).filter(Boolean),
+            featured: document.getElementById('fFeatured').checked,
+            cover: coverVal || (a ? a.cover : ''),
+            gallery: galVal,
+            status: a ? a.status : 'published',
+            createdAt: a ? a.createdAt : today()
+          };
+          Store.save('attractions', item);
+          closeModal();
+          if (Store.isFull()) {
+            toast('已保存，但浏览器存储空间不足，图片可能无法在下次打开时保留，请删除部分图片', 'error');
+          } else {
+            toast(isNew ? '景点创建成功' : '景点已更新', 'success');
+          }
+          render();
+        });
+      }
+
+      render();
+    });
+  </script>
+</body>
+</html>
