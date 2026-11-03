@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" role="img" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8fd0f5"/><stop offset="1" stop-color="#eef8ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#sky)"/>
+  <circle cx="980" cy="140" r="52" fill="#ffd76a"/>
+  <circle cx="980" cy="140" r="130" fill="#fff1bd" opacity="0.5"/>
+  <path d="M0 540 L160 390 L320 520 L520 360 L760 530 L960 400 L1200 520 L1200 800 L0 800 Z" fill="#a9c3e2"/>
+  <path d="M0 620 Q400 560 1200 620 L1200 800 L0 800 Z" fill="#86c286"/>
+  <text x="600" y="760" font-family="Microsoft YaHei, sans-serif" font-size="34" fill="#5d7f6c" text-anchor="middle" opacity="0.85">等待上传图片</text>
+</svg>
