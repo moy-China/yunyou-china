@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仪表盘 · 云游中国后台</title>
+  <link rel="stylesheet" href="../assets/css/admin.css">
+</head>
+<body>
+  <div class="admin-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+    <div class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="content">
+        <div class="stat-grid" id="statGrid"></div>
+
+        <div style="display:grid;grid-template-columns:1.2fr .8fr;gap:20px" class="dash-grid">
+          <div class="a-card">
+            <div class="head"><h2>📈 各分类景点数量</h2></div>
+            <div class="body"><div class="bar-chart" id="catChart"></div></div>
+          </div>
+          <div class="a-card">
+            <div class="head"><h2>💬 最新留言</h2><div class="spacer"></div><a class="a-btn a-btn-ghost a-btn-sm" href="comments.html">管理</a></div>
+            <div class="body" id="recentComments" style="padding-top:8px"></div>
+          </div>
+        </div>
+
+        <div class="a-card" style="margin-top:20px">
+          <div class="head"><h2>⚙️ 站点设置</h2></div>
+          <div class="body">
+            <div class="a-form" id="settingsForm">
+              <div class="field"><label>站点名称</label><input id="setName" type="text"></div>
+              <div class="field"><label>站点标语</label><input id="setSlogan" type="text"></div>
+              <div class="field full"><label>站点公告</label><textarea id="setAnnounce"></textarea></div>
+              <div class="full"><button class="a-btn a-btn-primary" id="saveSettings">保存设置</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="../assets/js/store.js"></script>
+  <script src="../assets/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      renderShell('dashboard', '仪表盘');
+      var spots = Store.all('attractions');
+      var users = Store.all('users');
+      var comments = Store.all('comments');
+      var news = Store.all('news');
+
+      var stats = [
+        { ic: '🏞️', cls: 'green', label: '景点总数', val: spots.length },
+        { ic: '👥', cls: 'blue', label: '注册用户', val: users.length },
+        { ic: '💬', cls: 'orange', label: '留言总数', val: comments.length },
+        { ic: '📰', cls: 'red', label: '资讯总数', val: news.length }
+      ];
+      document.getElementById('statGrid').innerHTML = stats.map(function (s) {
+        return '<div class="stat-card"><span class="ic ' + s.cls + '">' + s.ic + '</span><div><b>' + s.val + '</b><span>' + s.label + '</span></div></div>';
+      }).join('');
+
+      var counts = Store.categories.map(function (c) {
+        return { name: c.name, icon: c.icon, n: spots.filter(function (a) { return a.category === c.name; }).length };
+      });
+      var max = Math.max.apply(null, counts.map(function (c) { return c.n; }).concat([1]));
+      document.getElementById('catChart').innerHTML = counts.map(function (c) {
+        return '<div class="bar-row"><span>' + c.icon + ' ' + c.name + '</span>' +
+          '<div class="bar-track"><div class="bar-fill" style="width:' + Math.round(c.n / max * 100) + '%"></div></div>' +
+          '<span class="num">' + c.n + '</span></div>';
+      }).join('');
+
+      var recent = comments.slice().sort(function (a, b) { return b.date.localeCompare(a.date); }).slice(0, 5);
+      document.getElementById('recentComments').innerHTML = recent.length ? recent.map(function (c) {
+        var a = Store.get('attractions', c.attractionId);
+        return '<div style="display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #f0f4f3">' +
+          '<span class="avatar" style="width:30px;height:30px;font-size:13px">' + esc(c.username.charAt(0)) + '</span>' +
+          '<div style="min-width:0"><b style="font-size:13.5px">' + esc(c.username) + '</b> ' + starsHTML(c.rating) +
+          '<div class="text-muted">' + (a ? esc(a.name) : '') + ' · ' + esc(c.date) + '</div>' +
+          '<div style="font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(c.content) + '</div></div></div>';
+      }).join('') : '<div class="empty"><div class="big">💬</div><p>暂无留言</p></div>';
+
+      var s = Store.settings();
+      document.getElementById('setName').value = s.siteName;
+      document.getElementById('setSlogan').value = s.slogan;
+      document.getElementById('setAnnounce').value = s.announcement;
+      document.getElementById('saveSettings').addEventListener('click', function () {
+        s.siteName = document.getElementById('setName').value.trim() || s.siteName;
+        s.slogan = document.getElementById('setSlogan').value.trim() || s.slogan;
+        s.announcement = document.getElementById('setAnnounce').value.trim();
+        Store.save('settings', s);
+        toast('站点设置已保存', 'success');
+      });
+    });
+  </script>
+</body>
+</html>
